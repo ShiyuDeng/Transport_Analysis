@@ -112,7 +112,7 @@ def plot_FermiLiquid_offset(fit_results, target_pressures,
 
         # Apply slope and offset
         offset, slope = pressure_offset_slope_map.get(p, (0, 1))
-        color = cmap(norm(pressure))
+        color = cmap(norm(p))
         
         # Plot original data
         T_data = subset[x].values
@@ -197,8 +197,7 @@ def plot_LowT_Metal(original_data, fit_results,
                    linestyle='-.', lw=0.5, alpha=0.8,
                    label=r'$T_{\max}$'+f': {Trange[1]} K'
                    )
-
-
+        
         # Label only the last subplot
         if ax != axs[-1]:
             ax.tick_params(labelbottom=False)

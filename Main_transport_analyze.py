@@ -10,11 +10,15 @@ import sys
 #### read input info from info.py
 # from input_info import h, w, l, data_path, file_labels, Pressure_check, Tmin, Tmax, Tmin_fit, Tmax_fit, Project, savefile, fit_slope, metal_pressures, slope_values, offset_values
 
-from transport_processing import load_data, plot_current, plot_cooling_rate, plot_transport_data
+from transport_processing import load_data, plot_current, plot_cooling_rate, plot_transport_data, plot_Arrhenius, NeelTran
 from FermiLiquid_Fit import FermiLiquid_T2_fit, plot_fermi_liquid_fit, plot_LowT_Metal, plot_FermiLiquid_offset
 
 #### Main Code ######
-def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, Tmax_fit, Project, fit_slope, metal_pressures, slope_values, offset_values, current=False, cooling=False, transport=False, transport_norm=False, FermiLiquid=None, savefile=False, printplot=False):
+def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, Tmax_fit, 
+         Project, fit_slope, metal_pressures, slope_values, offset_values, 
+         current=False, cooling=False, transport=False, transport_norm=False, 
+         FermiLiquid=None, Arrhenius=False, MagTran=False,
+         savefile=False, printplot=False):
     ###### general style #######
     if printplot:
         font = {'family': 'Times New Roman', 'weight': 'normal', 'size': 16}
@@ -31,14 +35,13 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
 
     # check cooling rate
     if cooling:
-        for P in Pressure_check:
+        for pressure in Pressure_check:
             rate = plot_cooling_rate(all_data, 
-                                     P, Tmin, Tmax, Tmin_fit, Tmax_fit, markers,
+                                     pressure, Tmin, Tmax, Tmin_fit, Tmax_fit, 
                                      x='Elapsed time1 (Sec)', 
                                      y='Temp1 (K)',
                                      fit_slope=fit_slope, savefile=savefile
                                      )
-
 
     # resistance/resistivity plots
     if transport:
@@ -96,9 +99,9 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
             plot_LowT_Metal(all_data, fit_results,
                             target_pressures=metal_pressures,
                             x='Temp1 (K)', y='resistivity',
-                            figwidth=4, figheight_per_plot=1.2,
-                            savepath=f'{Project}_FermiLiquid_T2_stack.pdf')
-            
+                            figwidth=5, figheight_per_plot=1.25,
+                            savepath=f'{Project}_FermiLiquid_T2_stack.png')
+                       
         if 'plot_offset' in FermiLiquid:
             plot_FermiLiquid_offset(
                 fit_results,
@@ -106,7 +109,47 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                 slope_values=slope_values,
                 offset_values=offset_values,
                 figwidth=8, figheight=6,
-                savepath='{Project}_FermiLiquid_T2_offset.pdf')
+                savepath=f'{Project}_FermiLiquid_T2_offset.png')
+    
+    if Arrhenius:
+        print("Performing Arrhenius fitting for insulator phase.")
+        # Interactive user input 
+        target_pressure = float(input("Enter the target pressure (e.g., 6.0): "))
+        T_max = float(input("Enter the Temperature range, T_max: "))
+        T_min = float(input("Enter the Temperature range, T_min: "))
+        temperature_ticks = input("Enter the temperature x-ticks, e.g. 300,275,250: ")
+        temperature_ticks = [float(T) for T in temperature_ticks.split(',')]
+
+        Eg_value=plot_Arrhenius(all_data, x='Temp1 (K)', y='resistivity',
+                                target_pressure=target_pressure,
+                                T_max=T_max, T_min=T_min,
+                                temperature_ticks=temperature_ticks,
+                                figwidth=5.5, figheight=4.5,
+                                savepath=f'{Project}_{target_pressure}GPa_ArrheniusFit.png',
+                                savefile=savefile)
+        # Print the estimated band gap value
+        if Eg_value is not None:
+            print(f"Estimated band gap (Eg) value at {target_pressure} GPa for {Project}: {Eg_value:.2f} eV")
+        else:
+            print("Error in Arrhenius fitting.")
+    
+    if MagTran:
+        print("Performing Neel transition analysis.")
+        # Interactive user input
+        target_pressure = float(input("Enter the target pressure (e.g., 6.0): "))
+        Tm1 = float(input("Enter the lower bound of Neel transition temperature (e.g., 100): "))
+        Tm2 = float(input("Enter the upper bound of Neel transition temperature (e.g., 150): "))
+        window_size = int(input("Enter the window size for smoothing (e.g., 5): "))
+        subsample_factor = int(input("Enter the subsample factor (e.g., 15): "))
+
+        NeelTran(all_data, target_pressure=target_pressure,
+                Tm1=Tm1, Tm2=Tm2,
+                x_col='Temp1 (K)', y_col='Resistance1 (Ohm)',
+                window_size=window_size, subsample_factor=subsample_factor,
+                figwidth=6, figheight=4.5, color='orange',
+                savepath=f'{Project}_{target_pressure}GPa_{Tm1}_{Tm2}K_NeelTran.png', 
+                savefile=savefile
+                )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Transport Data Analysis for FePSe3")
@@ -119,6 +162,8 @@ if __name__ == "__main__":
                         nargs='+',
                         choices=['plot_individual', 'plot_stacked', 'plot_offset'],
                         help="Run Fermi-liquid analysis for low Temp metallic phase. Choose from: plot_individual, plot_stacked, plot_offset")
+    parser.add_argument("-Arrhenius", action="store_true", help="Arrhenius fitting for insulator")
+    parser.add_argument("-MagTran", action="store_true", help="Analyze Neel transition")
     parser.add_argument("-saveplot",  action="store_true", help="save the plot")
     parser.add_argument("-printplot", action="store_true", help="Enable publication plot")
 
@@ -156,6 +201,8 @@ if __name__ == "__main__":
         transport=args.transport,
         transport_norm=args.transport_norm,
         FermiLiquid=args.FermiLiquid,
+        Arrhenius=args.Arrhenius,
+        MagTran=args.MagTran,
         printplot=args.printplot,
         savefile=args.saveplot
     )

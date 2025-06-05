@@ -158,13 +158,13 @@ def plot_current(all_data, x, y, savefile=False):
 
 
 ########## check cooling down/warming up rate for each pressure point ###########
-def plot_cooling_rate(all_data, P, Tmin, Tmax, Tmin_fit, Tmax_fit, x, y,fit_slope=False, savefile=False):
+def plot_cooling_rate(all_data, pressure, Tmin, Tmax, Tmin_fit, Tmax_fit, x, y,fit_slope=False, savefile=False):
     from scipy.stats import linregress
 
     # Filter by pressure
-    Pdata = all_data[all_data['Pressure(GPa)'] == P]
+    Pdata = all_data[all_data['Pressure(GPa)'] == pressure]
     if Pdata.empty:
-        print(f"No data found for {P} GPa")
+        print(f"No data found for {pressure} GPa")
         return None
 
     slope_results = {}
@@ -183,10 +183,10 @@ def plot_cooling_rate(all_data, P, Tmin, Tmax, Tmin_fit, Tmax_fit, x, y,fit_slop
         y_data = data[y].values
         marker = markers[i % len(markers)]
         color = cmap(norm(pressure))
-        print(f"Temperature change during {P:.1f}GPa_{run_label}_{Tmin}-{Tmax}K")
+        print(f"Temperature change during {pressure:.1f}GPa_{run_label}_{Tmin}-{Tmax}K")
         plt.scatter(x_data, y_data, s=5, alpha=0.7,
                     marker=marker, color=color,
-                    label=f'{P:.1f}GPa, {run_label}')
+                    label=f'{pressure:.1f}GPa, {run_label}')
 
         if fit_slope:
             # Select data within temperature range
@@ -197,20 +197,20 @@ def plot_cooling_rate(all_data, P, Tmin, Tmax, Tmin_fit, Tmax_fit, x, y,fit_slop
             # Perform linear regression: Temp vs Time
             slope, intercept, r_value, p_value, std_err = linregress(x_data, y_data)
             slope_results[run_label] = slope
-            print(f"Cooling rate at {P} GPa between {Tmin_fit}–{Tmax_fit} K: {slope: .3f} K/s")
-            print(f"Cooling rate at {P} GPa between {Tmin_fit}–{Tmax_fit} K: {60*slope: .3f} K/min")
+            print(f"Cooling rate at {pressure} GPa between {Tmin_fit}–{Tmax_fit} K: {slope: .3f} K/s")
+            print(f"Cooling rate at {pressure} GPa between {Tmin_fit}–{Tmax_fit} K: {60*slope: .3f} K/min")
             plt.plot(x_data, intercept + slope * x_data,
                      color='black',ls='-.', lw=0.5,
                      label=f'Fit: slope={60*slope: .3f} K/min')
 
         plt.xlabel(x)
         plt.ylabel(y)
-        plt.title(f'Cooling Rate @ {P} GPa, {run_label}')
+        plt.title(f'Cooling Rate @ {pressure} GPa, {run_label}')
         plt.legend(fontsize=10)
         plt.grid(True)
             
         if savefile:
-            filename = f"{P:.1f}GPa_{run_label}_{Tmin}-{Tmax}K_TempChange.png"
+            filename = f"{pressure:.1f}GPa_{run_label}_{Tmin}-{Tmax}K_TempChange.png"
             plt.savefig(filename, dpi=600, transparent=True)
             print(f"Saved plot to: {filename}")  
         plt.show()
@@ -273,4 +273,171 @@ def plot_transport_data(all_data, x, y, fwidth=6, fheight=5,
     plt.show()
 
 ########################
+def plot_Arrhenius(all_data, x, y, target_pressure, T_max, T_min, 
+                   temperature_ticks='200,250,300', figwidth=5, figheight=5,
+                   savepath='ArrheniusFit.png', savefile=False):       
 
+    # Filter data within the specified temperature range (T_min to T_max)
+    target_data = all_data[all_data["Pressure(GPa)"] == target_pressure]
+    filtered_data = target_data[(target_data[x] >= T_min) & (target_data[x] <= T_max)]
+    x_values = 1 / filtered_data[x]
+    y_values = np.log(filtered_data[y])
+
+    ### plot the data
+    plt.figure(figsize=(figwidth, figheight))
+    plt.scatter(x_values, y_values, s=1, color='blue')
+    # plt.scatter(1/target_data[x], np.log(target_data[y]), s=10, color='blue')
+
+    ### set the x,y plotting range
+    plt.xlim(1/T_max, 1/T_min)
+    plt.ylim([y_values.min()-0.02, y_values.max()])
+
+    x_ticks = [1/T for T in temperature_ticks]
+
+    def fractions(x, pos):
+        for T in temperature_ticks:
+            if np.isclose(x, 1/T):
+               return r'$\frac{1}{' + str(int(T)) + '}$'
+        return ''
+
+    ax = plt.gca()
+    ax.set_xticks(x_ticks)
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(fractions))
+
+    ######################################################################
+    ######Perform a linear fit to extract the slope and intercept #########
+    filtered_data = target_data[(target_data[x] >= (T_min+8)) & (target_data[x] <= (T_max-8))]
+    x_values = 1 / filtered_data[x]
+    y_values = np.log(filtered_data[y])
+
+    slope, intercept = np.polyfit(x_values, y_values, 1)
+
+    # Generate y values for the linear fit line
+    y_fit = slope * x_values + intercept
+
+    # Overplot the linear fit line
+    plt.plot(x_values, y_fit, color='red') #, label=f'Fit: slope={slope:.4f}')
+
+    kB=1.380649*10**(-23) * 6.241509*10**18 ##Bolzman constant, unit: eV/K
+    Eg_value=slope*kB
+    print("The estimated band gap E_g is %s eV" %Eg_value)
+
+    # Add the annotation, placing it in a dynamically chosen position
+    plt.annotate(r'$E_a \approx $ {:.2f} eV'.format(Eg_value),
+                xy=(0.35, 0.8), 
+                xycoords='axes fraction', 
+                textcoords='offset points', 
+                xytext=(0, 0),  # Offset the text a bit for clarity
+                ha='center', fontsize=14, 
+                bbox=dict(boxstyle="round,pad=0.3", edgecolor="black", facecolor="lightgray"))
+
+    ########################################################################
+    plt.title(f'Arrhenius Ln Fit for {target_pressure} GPa') 
+    plt.xlabel('1/T (1/K)')
+    plt.ylabel(r'ln($\rho$)')
+    plt.grid(True)
+    plt.legend(loc='best', fontsize=10)
+
+    plt.tight_layout()
+    if savefile:
+        plt.savefig(savepath, dpi=600, transparent=True)
+        print(f"Saved figure to: {target_pressure}GPa_ArrheniusFit.{format}")
+    
+    plt.show()
+
+    return Eg_value
+
+###############################
+#### analyze dR/dT to determine the transition temperature ####
+def NeelTran(
+    all_data, target_pressure, Tm1, Tm2,
+    x_col='Temp1 (K)', y_col='Resistance1 (Ohm)',
+    window_size=5, subsample_factor=15,
+    figwidth=4.5, figheight=6, color='orange',
+    savepath='NeelTran.png', savefile=False
+):
+    """
+    Interactive function to plot resistivity and its derivative for a given pressure,
+    with smoothing and temperature range selection for the Neel transition.
+    """
+
+    formatter = ticker.ScalarFormatter(useMathText=True)
+    formatter.set_scientific(True)
+    formatter.set_powerlimits((-1, 1))
+
+    # Select data for the chosen pressure
+    target_data = all_data[all_data["Pressure(GPa)"] == target_pressure]
+    x = target_data[x_col]
+    y = pd.Series(target_data[y_col])
+
+    # Plot setup
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(figwidth, figheight), 
+                                   sharex=True, gridspec_kw={'hspace': 0})
+
+    # Scatter original data
+    ax1.scatter(x, y, marker='x', color = cmap(norm(target_pressure)), alpha=0.5, s=5, label='original data')
+
+    # Smooth data
+    y_smooth = y.rolling(window_size, min_periods=1).mean()
+    x_subsampled = x.iloc[::subsample_factor]
+    y_smooth_subsampled = y_smooth.iloc[::subsample_factor]
+    ax1.plot(x_subsampled, y_smooth_subsampled, c='red', alpha=1, lw=0.5, label='smoothed data')
+
+    # Derivative of rho over Temp
+    derivative = np.gradient(y_smooth_subsampled, x_subsampled)
+    ax2.plot(x_subsampled, derivative, c='red', alpha=0.8, lw=1.0)
+
+    # Restrict to Tm1-Tm2 range for zero crossing search
+    mask = (x_subsampled >= Tm1) & (x_subsampled <= Tm2)
+    x_inrange = x_subsampled[mask]
+    d_inrange = derivative[mask]
+
+    zero_crossings = np.where(np.diff(np.sign(d_inrange)))[0]
+    if len(zero_crossings) > 0:
+        idx = zero_crossings[0]
+        # Use position-based indexing to avoid KeyError
+        x0, x1 = np.array(x_inrange)[idx], np.array(x_inrange)[idx+1]
+        y0, y1 = np.array(d_inrange)[idx], np.array(d_inrange)[idx+1]
+        Tmean = x0 - y0 * (x1 - x0) / (y1 - y0)
+        T_err = abs(x1 - x0) / 2
+    else:
+        print("Err: No zero crossing found in the specified temperature range.")
+        Tmean = np.nan
+        T_err = np.nan
+
+    # Highlight Neel transition region and annotate
+    if not np.isnan(Tmean):
+        ax1.axvline(Tmean, color='#1f77b4', linestyle='-.', lw=1.0, label=r'$T_N = {0:.1f} \pm {1:.1f}$ K'.format(Tmean, T_err),)
+        ax1.axvspan(Tmean-T_err, Tmean+T_err, color='grey', alpha=0.1, zorder=-1)
+        ax2.axvline(Tmean, color='#1f77b4', linestyle='-.', lw=1.0)
+        ax2.axvspan(Tmean-T_err, Tmean+T_err, color='grey', alpha=0.1, zorder=-1)
+        ax2.annotate(
+            r'$T_N = {0:.1f} \pm {1:.1f}$ K'.format(Tmean, T_err),
+            xy=(Tmean, 0), xycoords=('data', 'data'),
+            xytext=(-120, 30), textcoords='offset points',
+            arrowprops=dict(arrowstyle='->', color='#1f77b4'),
+            color='#1f77b4', ha='left'
+        )
+        ax2.axhline(y=0, linewidth=1.0, ls='-.', color='black')
+
+    # Labels and formatting
+    ax1.set_yscale('log')
+    ax1.set_ylim(y.min()*0.95, y.max()*1.05)
+    ax1.set_ylabel(r'Resistivity $\rho$')
+    ax1.legend()
+    ax1.grid(True)
+    plot_title = os.path.splitext(os.path.basename(savepath))[0]  # Extract title without extension
+    ax1.set_title(plot_title)
+    #ax2.set_ylim(-derivative.max()*1.02, derivative.max()*1.02)
+    ax2.set_ylabel(r'$d\rho/d\rmT$')
+    ax2.set_xlabel('T (K)')
+    ax2.grid(True)
+    plt.xlim(10, 280)
+
+    ax2.set_ylim(auto=True)
+    plt.tight_layout()
+    if savefile:
+        plt.savefig(savepath, dpi=600, transparent=True)
+    plt.show()
+
+    return Tmean, T_err
