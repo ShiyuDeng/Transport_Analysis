@@ -1,3 +1,10 @@
+"""
+Functions for analyzing transport data from experiments.
+Last updated: 13/06/2025
+Author: [Shiyu Deng]
+Email:[dengs@ill.fr] or [sd864@cantab.ac.uk]
+"""
+
 import os
 import re
 import pandas as pd
@@ -288,8 +295,8 @@ def plot_transport_data(all_data, x, y, fwidth=6, fheight=5,
                        #title='Pressure (GPa)', title_fontsize=13
                        )
     # Increase marker size in legend only
-    for handle in legend.legendHandles:
-        handle.set_markersize(5)   
+    for handle in legend.legend_handles: # legendHandles:
+        handle.set_markersize(6)   
 
     plt.tight_layout()
     if savefile:

@@ -1,3 +1,10 @@
+"""
+Functions for analyzing transport data in metallic phases.
+Last updated: 13/06/2025
+Author: [Shiyu Deng]
+Email:[dengs@ill.fr] or [sd864@cantab.ac.uk]
+"""
+
 import matplotlib
 matplotlib.use('TkAgg') 
 import numpy as np

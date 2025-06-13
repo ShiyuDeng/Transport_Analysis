@@ -1,3 +1,12 @@
+"""
+Main script for analyzing transport data from experiments.
+Functions are stored in separate modules for better organization.
+- transport_processing.py
+- FermiLiquid_Fit.py
+Last updated: 13/06/2025
+Author: [Shiyu Deng]
+Email:[dengs@ill.fr] or [sd864@cantab.ac.uk]
+"""
 # main.py
 import argparse
 import importlib
