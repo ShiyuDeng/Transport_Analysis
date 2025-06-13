@@ -1,8 +1,7 @@
 # main.py
-import matplotlib.pyplot as plt
 import argparse
 import importlib
-import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
 
 import os
 import sys
@@ -10,13 +9,13 @@ import sys
 #### read input info from info.py
 # from input_info import h, w, l, data_path, file_labels, Pressure_check, Tmin, Tmax, Tmin_fit, Tmax_fit, Project, savefile, fit_slope, metal_pressures, slope_values, offset_values
 
-from transport_processing import load_data, plot_current, plot_cooling_rate, plot_transport_data, plot_Arrhenius, NeelTran
-from FermiLiquid_Fit import FermiLiquid_T2_fit, plot_fermi_liquid_fit, plot_LowT_Metal, plot_FermiLiquid_offset
+from transport_processing import load_data, plot_current, plot_cooling_rate, plot_transport_data, plot_Arrhenius, NeelTran, compute_RRR
+from FermiLiquid_Fit import FermiLiquid_T2_fit, plot_fermi_liquid_fit, plot_FermiLiquid_stack, plot_FermiLiquid_offset, plot_coefficient_A
 
 #### Main Code ######
-def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, Tmax_fit, 
+def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, Tmax_fit, Pressures_RRR,
          Project, fit_slope, metal_pressures, slope_values, offset_values, 
-         current=False, cooling=False, transport=False, transport_norm=False, 
+         current=False, cooling=False, analysis_RRR=False, transport=False, transport_norm=False, 
          FermiLiquid=None, Arrhenius=False, MagTran=False,
          savefile=False, printplot=False):
     ###### general style #######
@@ -42,6 +41,17 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                                      y='Temp1 (K)',
                                      fit_slope=fit_slope, savefile=savefile
                                      )
+
+    if analysis_RRR:
+        print(f"Residual Resistivity Ration analysis for {Project}:")
+        for pressure in Pressures_RRR:
+            target_data = all_data[all_data["Pressure(GPa)"] == pressure]
+
+            # Compute RRR
+            RRR_value, Tmin, Rmin, Tmax, Rmax = compute_RRR(target_data, x='Temp1 (K)', y='Resistance1 (Ohm)')
+            #print(f"Tmin: {Tmin:.2f} K, Rmin: {Rmin:.2f} Ohm, Tmax: {Tmax:.2f} K, Rmax: {Rmax:.2f} Ohm")
+            print(f"RRR at {pressure} GPa: {RRR_value:.2e}")
+            print("**********")
 
     # resistance/resistivity plots
     if transport:
@@ -71,7 +81,7 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                  params, covariance, Trange, error = FermiLiquid_T2_fit(
                      subset, x='Temp1 (K)', y='resistivity',
                      Tmin_range=(5, 30), Tmax_span=(10, 15),
-                     debug=True)
+                     debug=False)
                  print(f"*** Final Fitting Results for {pressure} GPa. {run} ***")
 
                  if params is not None:
@@ -82,6 +92,8 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                          "error": error,
                          "data": subset
                      }
+
+                     # Collect coefficient A for plotting
                      
                      if 'plot_individual' in FermiLiquid:
                          plot_fermi_liquid_fit(
@@ -89,14 +101,24 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                              filetitle=f"{Project}_{pressure}GPa_{run}",
                              x='Temp1 (K)', y='resistivity',
                              savefile=savefile, saveformat='png')
-                        
+                                   
                  else:
                      print(f"No suitable temperature range found for Pressure {pressure} GPa, run label: {run}.")
-                     
         print("Finished analyzing for pressures for metallic phase.")
+        
+        if 'plot_coefficient' in FermiLiquid:
+            print("Plotting Fermi-liquid coefficient A as a function of pressure:")
+
+            plot_coefficient_A(
+                fit_results, 
+                figwidth=5.5, figheight=4.5,
+                savefile=savefile,
+                saveformat='png',
+                title=f"{Project}_fitted_coeff"
+            )
 
         if 'plot_stacked' in FermiLiquid:
-            plot_LowT_Metal(all_data, fit_results,
+            plot_FermiLiquid_stack(all_data, fit_results,
                             target_pressures=metal_pressures,
                             x='Temp1 (K)', y='resistivity',
                             figwidth=5, figheight_per_plot=1.25,
@@ -152,16 +174,17 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                 )
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Transport Data Analysis for FePSe3")
+    parser = argparse.ArgumentParser(description="Transport Data Analysis")
     parser.add_argument("--input", required=True, help="Input config for specified sample")
     parser.add_argument("-current", action="store_true", help="Plot current vs temperature")
     parser.add_argument("-cooling", action="store_true", help="Analyze cooling rate")
+    parser.add_argument("-analysis_RRR", action="store_true", help="Analyze Residual Resistivity Ratio (RRR)")
     parser.add_argument("-transport", action="store_true", help="Plot resistance/resistivity")
     parser.add_argument("-transport_norm", action="store_true", help="Plot normalized resistance")
     parser.add_argument("--FermiLiquid",
                         nargs='+',
-                        choices=['plot_individual', 'plot_stacked', 'plot_offset'],
-                        help="Run Fermi-liquid analysis for low Temp metallic phase. Choose from: plot_individual, plot_stacked, plot_offset")
+                        choices=['plot_coefficient','plot_individual', 'plot_stacked', 'plot_offset'],
+                        help="Run Fermi-liquid analysis for low Temp metallic phase. Choose from: plot_coefficient, plot_individual, plot_stacked, plot_offset")
     parser.add_argument("-Arrhenius", action="store_true", help="Arrhenius fitting for insulator")
     parser.add_argument("-MagTran", action="store_true", help="Analyze Neel transition")
     parser.add_argument("-saveplot",  action="store_true", help="save the plot")
@@ -191,6 +214,7 @@ if __name__ == "__main__":
         Tmax=config.Tmax,
         Tmin_fit=config.Tmin_fit,
         Tmax_fit=config.Tmax_fit,
+        Pressures_RRR=config.Pressures_RRR,
         Project=config.Project,
         fit_slope=config.fit_slope,
         metal_pressures=config.metal_pressures,
@@ -198,6 +222,7 @@ if __name__ == "__main__":
         offset_values=config.offset_values,
         current=args.current,
         cooling=args.cooling,
+        analysis_RRR=args.analysis_RRR,
         transport=args.transport,
         transport_norm=args.transport_norm,
         FermiLiquid=args.FermiLiquid,

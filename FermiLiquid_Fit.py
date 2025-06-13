@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('TkAgg') 
 import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
@@ -57,9 +59,10 @@ def FermiLiquid_T2_fit(data, x='Temp1 (K)', y='resistivity',
                 
     return best_params, best_covariance, best_T_range, best_error
 
+
 def plot_fermi_liquid_fit(data, params, Trange, filetitle, x='Temp1 (K)', y='resistivity', savefile=True, saveformat='png'):
     
-    T_fit = np.linspace(0, 100, 45**2)
+    T_fit = np.linspace(Trange[0], Trange[1], 50**2)
     fit_curve = Landau_resistivity(T_fit, *params)
 
     plt.figure(figsize=(6.5, 5.5))
@@ -67,7 +70,7 @@ def plot_fermi_liquid_fit(data, params, Trange, filetitle, x='Temp1 (K)', y='res
                 s=5, alpha=0.3, color='blue')
     plt.plot(T_fit**2, fit_curve, color='black', lw=1.5)
 
-    ylim_max = max(data[(data[x] >= 0) & (data[x] <= 50)][y])
+    ylim_max = max(data[(data[x] >= Trange[0]) & (data[x] <= Trange[1])][y])
     ylim_min = min(fit_curve)
     
     plt.ylim(ylim_min, ylim_max)
@@ -87,6 +90,63 @@ def plot_fermi_liquid_fit(data, params, Trange, filetitle, x='Temp1 (K)', y='res
     if savefile:
         plt.savefig(f'{filetitle}_T2fit.{saveformat}', dpi=600, transparent=True)
     plt.show()
+
+
+###################
+def plot_coefficient_A(fit_results, figwidth=5.5, figheight=4.5, savefile=None, saveformat='png', title="Fermi-liquid A coefficient"):
+    import pandas as pd
+
+    # Collect all coefficients from fit_results
+    records = []
+    for (pressure, run), result in fit_results.items():
+        params = result["params"]
+        Trange = result["Trange"]
+        error = result["error"]
+
+        records.append({
+            "Pressure": pressure,
+            "RunLabel": run,
+            "A_coeff": params[1],   # A
+            "rho0": params[0],      # rho₀
+            "Tmin": Trange[0],
+            "Tmax": Trange[1],
+            "Error": error
+        })
+
+    df = pd.DataFrame(records)
+
+    # Print coefficients line by line
+    print(f"\nFermi-liquid A coefficients for {title}:")
+    print(f"{'Pressure(GPa)':>14}  {'RunLabel':>10}  {'A_coeff':>12}")
+    for _, row in df.iterrows():
+        print(f"{row['Pressure']:>14}  {row['RunLabel']:>10}  {row['A_coeff']:>12.4e}")
+
+    # Plot A vs Pressure, grouped by run label
+    print("start plotting coeff_A vs Pressure")
+    plt.figure(figsize=(figwidth, figheight))
+    for pressure in df['Pressure'].unique():
+        for run in df[df['Pressure'] == pressure]['RunLabel'].unique():
+            subset = df[(df['Pressure'] == pressure) & (df['RunLabel'] == run)]
+            plt.scatter(subset['Pressure'], subset['A_coeff'], 
+                        marker='o', color = cmap(norm(pressure)), s=40, label=f'{pressure} GPa, {run}')
+
+        # if more than one run per pressure: label=run 
+        # if one run per pressure: label = f"{run} {subset['Pressure'].iloc[0]} GPa"
+
+    plt.xlim(6.5,14.5)
+    plt.ylim(2.5e-10, 1.5e-8)
+    plt.xlabel("Pressure (GPa)")
+    plt.ylabel(r"A from Fermi-Liquid fit ($\rho \sim \rho_0 + A \dot T^2$)")
+    plt.title(title)
+    plt.legend()
+    plt.grid(True, linestyle=':', linewidth=0.5)
+    plt.tight_layout()
+
+    if savefile:
+        plt.savefig(f"{title}.{saveformat}", dpi=300)
+    plt.show()
+####################
+
 
 
 #########
@@ -123,7 +183,8 @@ def plot_FermiLiquid_offset(fit_results, target_pressures,
         # Plot fit curve in same range
         T_fit = np.linspace(0, 45, 1000)
         fit_curve = Landau_resistivity(T_fit, *params)
-        plt.plot(T_fit**2, fit_curve/slope + offset, color='black', lw=1.0)
+        plt.plot(T_fit**2, fit_curve/slope + offset, color='black', lw=1.0, 
+                 label=f"A = {best_params[1]:.2e} ± {np.sqrt(best_covariance[1, 1]):.1e}")
 
         # Annotate Tmin and Tmax on the fit
         arrow_y = np.interp(Trange[0]**2, subset[x]**2, subset[y]/slope + offset)
@@ -135,6 +196,7 @@ def plot_FermiLiquid_offset(fit_results, target_pressures,
         plt.annotate('', xy=(Trange[1]**2, arrow_y + 0.1e-6), 
                      xytext=(Trange[1]**2, arrow_y), 
                      arrowprops=dict(arrowstyle='->', color=color, lw=1.2))
+        
  
 
     # Axis labels and limits
@@ -150,11 +212,11 @@ def plot_FermiLiquid_offset(fit_results, target_pressures,
 
 
 ########## vertical subplots
-def plot_LowT_Metal(original_data, fit_results,
-                    target_pressures,
-                    x='Temp1 (K)', y='resistivity',
-                    figwidth=6, figheight_per_plot=1,
-                    savepath='FermiLiquid_T2.pdf'):
+def plot_FermiLiquid_stack(original_data, fit_results,
+                            target_pressures,
+                            x='Temp1 (K)', y='resistivity',
+                            figwidth=6, figheight_per_plot=1,
+                            savepath='FermiLiquid_T2.pdf'):
 
     # Filter only relevant fit results
     filtered_results = [(key, result) for key, result in fit_results.items() if np.isclose(key[0], target_pressures).any()]
@@ -181,7 +243,7 @@ def plot_LowT_Metal(original_data, fit_results,
         
         # Scatter: original data
         ax.scatter(subset[x]**2, subset[y],
-                   label=f"{pressure} GPa, {run_label}",
+                   label=f"{pressure} GPa, {run_label}", #, A = {best_params[1]:.2e} ± {np.sqrt(best_covariance[1, 1]):.1e}",
                    s=1.5, alpha=0.8, color=color)
 
         # Line: fitted curve

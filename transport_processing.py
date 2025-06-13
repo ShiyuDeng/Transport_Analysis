@@ -221,6 +221,32 @@ def plot_cooling_rate(all_data, pressure, Tmin, Tmax, Tmin_fit, Tmax_fit, x, y,f
 #################################################
 
 
+######## RRR (Residual Resistivity Ratio) #######
+########     to assess sample quality     #######
+def compute_RRR(data, x='Temp1 (K)', y='resistivity'):
+    """
+    Compute Residual Resistivity Ratio (RRR) for a subset of data.
+
+    Returns:
+        RRR value (float),
+        Tmin, Rmin,
+        Tmax, Rmax
+    """
+    Tmin_idx = data[x].idxmin()
+    Tmax_idx = data[x].idxmax()
+
+    Tmin = data.loc[Tmin_idx, x]
+    Tmax = data.loc[Tmax_idx, x]
+    Rmin = data.loc[Tmin_idx, y]
+    Rmax = data.loc[Tmax_idx, y]
+
+    RRR_value = Rmax / Rmin if Rmin != 0 else float('inf')
+    print(f"RRR = R({Tmax:.1f} K) / R({Tmin:.1f} K) = {Rmax:.2e} / {Rmin:.2e} = {RRR_value:.2e}")
+    return RRR_value, round(Tmin, 2), round(Rmin, 2), round(Tmax, 2), round(Rmax, 2)
+################################################
+
+
+
 #################################################
 def plot_transport_data(all_data, x, y, fwidth=6, fheight=5,
                         savefile=False, transport_title=None):
@@ -241,11 +267,11 @@ def plot_transport_data(all_data, x, y, fwidth=6, fheight=5,
             
             ax.plot(subset[x], subset[y],
                     linestyle='None',
-                    color=color,
+                    #color=color,
                     #markerfacecolor=color,
                     marker=marker, markersize=1.0, markeredgewidth=0.5,
                     fillstyle='top', alpha=0.7,
-                    label=f"{pressure} GPa")
+                    label=f"{pressure} GPa, {run_label}")
             
     ax.set_xlabel("Temperature (K)")
     ax.set_ylabel(f"{y}")
