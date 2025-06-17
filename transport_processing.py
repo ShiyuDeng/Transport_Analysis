@@ -262,7 +262,6 @@ def plot_transport_data(all_data, x, y, fwidth=6, fheight=5,
     pressures = sorted(all_data['Pressure(GPa)'].unique())
     fig, ax = plt.subplots(figsize=(fwidth, fheight))
 
-    #### plot 
     for i, pressure in enumerate(pressures):
         subdata = all_data[all_data['Pressure(GPa)'] == pressure]
         run_labels = subdata['RunLabel'].unique()
@@ -274,24 +273,30 @@ def plot_transport_data(all_data, x, y, fwidth=6, fheight=5,
             
             ax.plot(subset[x], subset[y],
                     linestyle='None',
-                    #color=color,
+                    color=color,
                     #markerfacecolor=color,
                     marker=marker, markersize=1.0, markeredgewidth=0.5,
                     fillstyle='top', alpha=0.7,
-                    label=f"{pressure} GPa, {run_label}")
+                    label=f"{pressure} GPa")  # f"{pressure} GPa, {run_label}"
             
     ax.set_xlabel("Temperature (K)")
-    ax.set_ylabel(f"{y}")
+    if y == 'resistivity':
+        ax.set_ylabel(r'Resistivity $\rho$ ($\Omega\,\cdot \mathrm{m}$)')
+    elif y == 'Resistance1 (Ohm)':
+        ax.set_ylabel(r'Resistance $R$ ($\Omega$)')
     ax.set_title(transport_title)
 
     ax.set_yscale('log')
     ax.set_xlim(0, 300)
-    ax.set_ylim(5e-2, 1e8)
-
+    if y == 'resistivity':
+        ax.set_ylim(4e-7, 1e3)
+    elif y == 'Resistance1 (Ohm)':
+        ax.set_ylim(5e-2, 1e8) 
+        
     ax.grid(True)
 
     legend = ax.legend(loc='best',
-                       ncol=2, fontsize=12,
+                       ncol=2, fontsize=14,
                        #title='Pressure (GPa)', title_fontsize=13
                        )
     # Increase marker size in legend only
@@ -300,7 +305,7 @@ def plot_transport_data(all_data, x, y, fwidth=6, fheight=5,
 
     plt.tight_layout()
     if savefile:
-        filename = f"{transport_title}_{y}.png"
+        filename = f"{transport_title}.png"
         plt.savefig(filename, dpi=600)
         print(f"Saved figure to: {filename}")
     plt.show()

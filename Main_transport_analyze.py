@@ -15,18 +15,17 @@ import matplotlib.pyplot as plt
 import os
 import sys
 
-#### read input info from info.py
-# from input_info import h, w, l, data_path, file_labels, Pressure_check, Tmin, Tmax, Tmin_fit, Tmax_fit, Project, savefile, fit_slope, metal_pressures, slope_values, offset_values
-
 from transport_processing import load_data, plot_current, plot_cooling_rate, plot_transport_data, plot_Arrhenius, NeelTran, compute_RRR
 from FermiLiquid_Fit import FermiLiquid_T2_fit, plot_fermi_liquid_fit, plot_FermiLiquid_stack, plot_FermiLiquid_offset, plot_coefficient_A
 
 #### Main Code ######
 def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, Tmax_fit, Pressures_RRR,
-         Project, fit_slope, metal_pressures, slope_values, offset_values, 
-         current=False, cooling=False, analysis_RRR=False, transport=False, transport_norm=False, 
+         Project, fit_slope, metal_pressures, slope_values, offset_values, ytrans,
+         current=False, cooling=False, analysis_RRR=False, 
+         transport=False, transport_norm=False,
          FermiLiquid=None, Arrhenius=False, MagTran=False,
          savefile=False, printplot=False):
+
     ###### general style #######
     if printplot:
         font = {'family': 'Times New Roman', 'weight': 'normal', 'size': 16}
@@ -38,7 +37,7 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
     
     # check current during measurement
     if current:
-        plot_current(all_data, x='Temp1 (K)', y='Resistance1 (Ohm)',
+        plot_current(all_data, x='Temp1 (K)', y=ytrans,
                      savefile=savefile)
 
     # check cooling rate
@@ -65,17 +64,17 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
     # resistance/resistivity plots
     if transport:
         plot_transport_data(all_data,
-                            x='Temp1 (K)', y='Resistance1 (Ohm)',
+                            x='Temp1 (K)', y=ytrans,
                             fwidth=6, fheight=5,
                             savefile=savefile,
-                            transport_title=f'{Project}')
+                            transport_title=f'{Project}_{ytrans}')
 
     if transport_norm:
         plot_transport_data(all_data,
                             x='Temp1 (K)', y='norm_Resistance',
                             fwidth=6, fheight=5,
                             savefile=savefile,
-                            transport_title=f'{Project}_norm')
+                            transport_title=f'{Project}_{ytrans}_norm')
 
     ### analyze Fermi-liquid behaviour
     if FermiLiquid:
@@ -151,7 +150,7 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
         temperature_ticks = input("Enter the temperature x-ticks, e.g. 300,275,250: ")
         temperature_ticks = [float(T) for T in temperature_ticks.split(',')]
 
-        Eg_value=plot_Arrhenius(all_data, x='Temp1 (K)', y='resistivity',
+        Eg_value=plot_Arrhenius(all_data, x='Temp1 (K)', y=ytrans,
                                 target_pressure=target_pressure,
                                 T_max=T_max, T_min=T_min,
                                 temperature_ticks=temperature_ticks,
@@ -175,7 +174,7 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
 
         NeelTran(all_data, target_pressure=target_pressure,
                 Tm1=Tm1, Tm2=Tm2,
-                x_col='Temp1 (K)', y_col='Resistance1 (Ohm)',
+                x_col='Temp1 (K)', y_col=ytrans,
                 window_size=window_size, subsample_factor=subsample_factor,
                 figwidth=6, figheight=4.5, color='orange',
                 savepath=f'{Project}_{target_pressure}GPa_{Tm1}_{Tm2}K_NeelTran.png', 
@@ -234,6 +233,7 @@ if __name__ == "__main__":
         analysis_RRR=args.analysis_RRR,
         transport=args.transport,
         transport_norm=args.transport_norm,
+        ytrans=config.ytrans,
         FermiLiquid=args.FermiLiquid,
         Arrhenius=args.Arrhenius,
         MagTran=args.MagTran,
