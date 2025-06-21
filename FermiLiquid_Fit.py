@@ -26,7 +26,7 @@ def FermiLiquid_T2_fit(data, x='Temp1 (K)', y='resistivity',
     rho0_estimate =data[y].min()
     best_params, best_covariance = None, None
     best_error = float('inf')
-    best_temperature_range = None
+    best_T_range = None
 
     for Tmin in range(*Tmin_range):
         for Tmax in range(Tmin+Tmax_span[0], Tmin+Tmax_span[1]+1):
@@ -150,7 +150,7 @@ def plot_coefficient_A(fit_results, figwidth=5.5, figheight=4.5, savefile=None, 
     plt.tight_layout()
 
     if savefile:
-        plt.savefig(f"{title}.{saveformat}", dpi=300)
+        plt.savefig(f"{title}.{saveformat}", dpi=600, transparent=True)
     plt.show()
 ####################
 
@@ -158,63 +158,114 @@ def plot_coefficient_A(fit_results, figwidth=5.5, figheight=4.5, savefile=None, 
 
 #########
 def plot_FermiLiquid_offset(fit_results, target_pressures,
-                            slope_values, offset_values,
+                            slope_values=None, offset_values=None,
                             figwidth=10, figheight=6,
                             x='Temp1 (K)', y='resistivity',
-                            savepath='FermiLiquid_T2_offset.pdf'):
+                            savepath='FermiLiquid_T2_offset.png',
+                            inset_coeff=False):
+
+    Temp_mask = 45 # Mask for temperatures below this value
 
     # Setup figure
-    plt.figure(figsize=(figwidth, figheight))
+    fig, ax = plt.subplots(figsize=(figwidth, figheight))
     plt.subplots_adjust(left=0.07, right=0.97, top=0.95, bottom=0.1)
 
-    # Build offset/slope map
+    # slope values default: fitted A coefficient
+    if slope_values is None:
+         slope_values = [result["params"][1] 
+                         for (p, run_label), result in fit_results.items() if p in target_pressures]
+    
     pressure_offset_slope_map = {
         p: (offset_values[i], slope_values[i]) for i, p in enumerate(target_pressures)
     }
-
+    
+    ylim_min, ylim_max = float('inf'), float('-inf')
     for (p, run_label), result in fit_results.items():
         subset = result["data"]
         params = result["params"]
         Trange = result["Trange"]
 
-        # Apply slope and offset
+        # read slope and offset
         offset, slope = pressure_offset_slope_map.get(p, (0, 1))
         color = cmap(norm(p))
         
-        # Plot original data
-        T_data = subset[x].values
-        R_data = subset[y].values
-        plt.scatter(T_data**2, R_data/slope + offset,
-                    label=f"{p} GPa, {run_label}", s=5, alpha=0.7, color=color)
+        subset_lowT = subset[subset['Temp1 (K)'] < Temp_mask]
+        T_data = subset_lowT[x].values
+        R_data = subset_lowT[y].values
 
-        # Plot fit curve in same range
-        T_fit = np.linspace(0, 45, 1000)
+        # plot original data
+        ax.plot(T_data**2, R_data/slope + offset, 
+                marker='o', markersize=1.0,
+                linestyle='None',
+                #label=f"{p} GPa", 
+                alpha=0.7, color=color)
+
+        # Plot fit curve
+        T_fit = np.linspace(0, Temp_mask, 1000)
         fit_curve = Landau_resistivity(T_fit, *params)
-        plt.plot(T_fit**2, fit_curve/slope + offset, color='black', lw=1.0, 
-                 label=f"A = {best_params[1]:.2e} ± {np.sqrt(best_covariance[1, 1]):.1e}")
+        ax.plot(T_fit**2, fit_curve/slope + offset, 
+                color='black', linestyle='-' ,lw=1.0)
 
-        # Annotate Tmin and Tmax on the fit
-        arrow_y = np.interp(Trange[0]**2, subset[x]**2, subset[y]/slope + offset)
-        plt.annotate('', xy=(Trange[0]**2, arrow_y + 0.1e-6), 
-                     xytext=(Trange[0]**2, arrow_y), 
-                     arrowprops=dict(arrowstyle='->', color=color, lw=1.2))
+       # add labels for Pressure next to each dataset
+        x_text = T_fit[-1]**2
+        y_text = fit_curve[-1]/slope + offset
+        ax.text(
+            x_text+0.02*(ax.get_xlim()[1] - ax.get_xlim()[0]),  # small offset to the right
+            y_text,
+            f"{p} GPa",
+            va='center', ha='left', fontsize=15, color=color,
+            bbox=dict(facecolor='white', edgecolor='none', alpha=0.6, pad=1)
+        )
 
-        arrow_y = np.interp(Trange[1]**2, subset[x]**2, subset[y]/slope + offset)
-        plt.annotate('', xy=(Trange[1]**2, arrow_y + 0.1e-6), 
-                     xytext=(Trange[1]**2, arrow_y), 
-                     arrowprops=dict(arrowstyle='->', color=color, lw=1.2))
-        
- 
+        # Annotate Tmin and Tmax on the fit with arrows
+        arrow_length = 500
+        for T, color in zip(Trange, ['cyan', 'red']):
+            x_arrow = T**2
+            y_arrow = Landau_resistivity(T, *params)/slope + offset
+            ax.annotate(
+                '', 
+                xy=(x_arrow, y_arrow), 
+                xytext=(x_arrow, y_arrow - arrow_length), 
+                arrowprops=dict(arrowstyle='->', color=color, lw=1.0)
+            )
+
+        ### update the ylim_min, ylim_max
+        yvals = fit_curve/slope + offset
+        ylim_min = min(ylim_min, np.min(yvals))
+        ylim_max = max(ylim_max, np.max(yvals))
 
     # Axis labels and limits
-    plt.xlabel(r"$T^2$ (K$^2$)")
-    plt.ylabel(r"Normalized, offset resistivity $\rho$ ($\Omega \cdot$m)")
-    plt.xlim(0, 45**2)
-    plt.legend(ncol=2, fontsize=10)
-    plt.tight_layout()
+    ax.set_xlabel(r"$T^2$ (K$^2$)")
+    ax.set_ylabel(r"Normalized, offset resistivity $\rho$ ($\Omega \cdot$m)")
+    ax.text(0.05, 0.85, r"$\rho \sim \rho_0 + A \cdot T^2$",
+            transform=ax.transAxes, ha='left', fontsize=15)
+    ax.set_yticks([])
+    ax.set_xlim(0, Temp_mask**2)
+    ax.set_ylim(ylim_min*0.85, ylim_max)  # Adjusted y-limits for better visibility
+
+    if inset_coeff:
+        A_vs_pressure = []
+        for p in target_pressures:
+            # Find all runs for this pressure
+            runs = [result for (pp, run_label), result in fit_results.items() if pp == p]
+            if runs:
+                # Use the first run's params[1] (A coefficient)
+                A_vs_pressure.append((p, runs[0]["params"][1]))
+
+        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+        pressures, A_coeffs = zip(*sorted(A_vs_pressure))
+        axins = ax.inset_axes([0.62, 0.01, 0.375, 0.18])  # [x0, y0, width, height] in axes fraction
+        #axins.patch.set_alpha(0.7)
+        colors = [cmap(norm(p)) for p in pressures]
+        axins.scatter(pressures, A_coeffs, c=colors, s=30)
+        axins.set_ylabel('A coeff.', fontsize=14)
+        axins.tick_params(axis='x',  which='both', bottom=False, top=False, labelbottom=False)
+        axins.tick_params(axis='y', direction='in', which='both')
+        axins.tick_params(labelsize=14)
 
     # Save and/or show
-    plt.savefig(savepath, dpi=900, transparent=True)
+    plt.tight_layout()
+    plt.savefig(savepath, dpi=600, transparent=True)
     plt.show()
 
 

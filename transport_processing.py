@@ -255,8 +255,8 @@ def compute_RRR(data, x='Temp1 (K)', y='resistivity'):
 
 
 #################################################
-def plot_transport_data(all_data, x, y, fwidth=6, fheight=5,
-                        savefile=False, transport_title=None):
+def plot_transport_data(all_data, x, y, fwidth=6, fheight=5, saveformat='png', 
+                        savefile=False, savefile_name=None):
     from sklearn.preprocessing import MinMaxScaler
 
     pressures = sorted(all_data['Pressure(GPa)'].unique())
@@ -284,30 +284,28 @@ def plot_transport_data(all_data, x, y, fwidth=6, fheight=5,
         ax.set_ylabel(r'Resistivity $\rho$ ($\Omega\,\cdot \mathrm{m}$)')
     elif y == 'Resistance1 (Ohm)':
         ax.set_ylabel(r'Resistance $R$ ($\Omega$)')
-    ax.set_title(transport_title)
 
     ax.set_yscale('log')
     ax.set_xlim(0, 300)
     if y == 'resistivity':
-        ax.set_ylim(4e-7, 1e3)
+        ax.set_ylim(4e-7, 2e3)
     elif y == 'Resistance1 (Ohm)':
         ax.set_ylim(5e-2, 1e8) 
         
-    ax.grid(True)
-
+    # Increase marker size in legend only
     legend = ax.legend(loc='best',
                        ncol=2, fontsize=14,
                        #title='Pressure (GPa)', title_fontsize=13
                        )
-    # Increase marker size in legend only
-    for handle in legend.legend_handles: # legendHandles:
+    for handle in legend.legend_handles:
         handle.set_markersize(6)   
 
+   # ax.set_title(savefile_name)    
+   # ax.grid(True)
     plt.tight_layout()
     if savefile:
-        filename = f"{transport_title}.png"
-        plt.savefig(filename, dpi=600)
-        print(f"Saved figure to: {filename}")
+        plt.savefig(f"{savefile_name}.{saveformat}", dpi=300)
+        print(f"Saved figure to: {savefile_name}.{saveformat}")
     plt.show()
 
 ########################

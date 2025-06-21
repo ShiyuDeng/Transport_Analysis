@@ -20,10 +20,10 @@ from FermiLiquid_Fit import FermiLiquid_T2_fit, plot_fermi_liquid_fit, plot_Ferm
 
 #### Main Code ######
 def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, Tmax_fit, Pressures_RRR,
-         Project, fit_slope, metal_pressures, slope_values, offset_values, ytrans,
+         Project, fit_slope, metal_pressures, slope_values, offset_values, ytrans, saveformat,
          current=False, cooling=False, analysis_RRR=False, 
          transport=False, transport_norm=False,
-         FermiLiquid=None, Arrhenius=False, MagTran=False,
+         FermiLiquid=None, inset_coeff=False, Arrhenius=False, MagTran=False,
          savefile=False, printplot=False):
 
     ###### general style #######
@@ -65,16 +65,17 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
     if transport:
         plot_transport_data(all_data,
                             x='Temp1 (K)', y=ytrans,
-                            fwidth=6, fheight=5,
-                            savefile=savefile,
-                            transport_title=f'{Project}_{ytrans}')
+                            fwidth=6, fheight=4.5,
+                            savefile=savefile, saveformat=saveformat,
+                            savefile_name=f'{Project}_{ytrans}'
+                            )
 
     if transport_norm:
         plot_transport_data(all_data,
                             x='Temp1 (K)', y='norm_Resistance',
                             fwidth=6, fheight=5,
-                            savefile=savefile,
-                            transport_title=f'{Project}_{ytrans}_norm')
+                            savefile=savefile, saveformat=saveformat,
+                            savefile_name=f'{Project}_{ytrans}_norm')
 
     ### analyze Fermi-liquid behaviour
     if FermiLiquid:
@@ -108,7 +109,7 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                              subset, params=params, Trange=Trange,
                              filetitle=f"{Project}_{pressure}GPa_{run}",
                              x='Temp1 (K)', y='resistivity',
-                             savefile=savefile, saveformat='png')
+                             savefile=savefile, saveformat=saveformat)
                                    
                  else:
                      print(f"No suitable temperature range found for Pressure {pressure} GPa, run label: {run}.")
@@ -121,7 +122,7 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                 fit_results, 
                 figwidth=5.5, figheight=4.5,
                 savefile=savefile,
-                saveformat='png',
+                saveformat=saveformat,
                 title=f"{Project}_fitted_coeff"
             )
 
@@ -130,7 +131,7 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                             target_pressures=metal_pressures,
                             x='Temp1 (K)', y='resistivity',
                             figwidth=5, figheight_per_plot=1.25,
-                            savepath=f'{Project}_FermiLiquid_T2_stack.png')
+                            savepath=f'{Project}_FermiLiquid_T2_stack.{saveformat}')
                        
         if 'plot_offset' in FermiLiquid:
             plot_FermiLiquid_offset(
@@ -138,8 +139,9 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                 target_pressures=metal_pressures,
                 slope_values=slope_values,
                 offset_values=offset_values,
-                figwidth=8, figheight=6,
-                savepath=f'{Project}_FermiLiquid_T2_offset.png')
+                figwidth=6, figheight=4.5,
+                savepath=f'{Project}_FermiLiquid_T2_offset.{saveformat}',
+                inset_coeff=inset_coeff)
     
     if Arrhenius:
         print("Performing Arrhenius fitting for insulator phase.")
@@ -155,7 +157,7 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                                 T_max=T_max, T_min=T_min,
                                 temperature_ticks=temperature_ticks,
                                 figwidth=5.5, figheight=4.5,
-                                savepath=f'{Project}_{target_pressure}GPa_ArrheniusFit.png',
+                                savepath=f'{Project}_{target_pressure}GPa_ArrheniusFit.{saveformat}',
                                 savefile=savefile)
         # Print the estimated band gap value
         if Eg_value is not None:
@@ -177,7 +179,7 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                 x_col='Temp1 (K)', y_col=ytrans,
                 window_size=window_size, subsample_factor=subsample_factor,
                 figwidth=6, figheight=4.5, color='orange',
-                savepath=f'{Project}_{target_pressure}GPa_{Tm1}_{Tm2}K_NeelTran.png', 
+                savepath=f'{Project}_{target_pressure}GPa_{Tm1}_{Tm2}K_NeelTran.{saveformat}', 
                 savefile=savefile
                 )
 
@@ -226,14 +228,16 @@ if __name__ == "__main__":
         Project=config.Project,
         fit_slope=config.fit_slope,
         metal_pressures=config.metal_pressures,
-        slope_values=config.slope_values,
+        slope_values = getattr(config, "slope_values", None),
         offset_values=config.offset_values,
+        inset_coeff=getattr(config, "inset_coeff", False),
         current=args.current,
         cooling=args.cooling,
         analysis_RRR=args.analysis_RRR,
         transport=args.transport,
         transport_norm=args.transport_norm,
         ytrans=config.ytrans,
+        saveformat=config.saveformat,
         FermiLiquid=args.FermiLiquid,
         Arrhenius=args.Arrhenius,
         MagTran=args.MagTran,

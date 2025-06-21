@@ -1,6 +1,6 @@
 *.swp
 # vs code workspace file
- .vscode/
+.vscode/
 
 # emacs temp
 *~
