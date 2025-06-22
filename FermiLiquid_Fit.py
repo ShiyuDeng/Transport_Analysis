@@ -100,7 +100,9 @@ def plot_fermi_liquid_fit(data, params, Trange, filetitle, x='Temp1 (K)', y='res
 
 
 ###################
-def plot_coefficient_A(fit_results, figwidth=5.5, figheight=4.5, savefile=None, saveformat='png', title="Fermi-liquid A coefficient"):
+def plot_coefficient_A(fit_results, figwidth=5.5, figheight=4.5, 
+                       savefile=None, saveformat='png', 
+                       title="Fermi-liquid A coefficient"):
     import pandas as pd
 
     # Collect all coefficients from fit_results
@@ -133,19 +135,20 @@ def plot_coefficient_A(fit_results, figwidth=5.5, figheight=4.5, savefile=None, 
     plt.figure(figsize=(figwidth, figheight))
     for pressure in df['Pressure'].unique():
         for run in df[df['Pressure'] == pressure]['RunLabel'].unique():
+            print(f"  Pressure: {pressure} GPa, Run: {run}")
             subset = df[(df['Pressure'] == pressure) & (df['RunLabel'] == run)]
             plt.scatter(subset['Pressure'], subset['A_coeff'], 
-                        marker='o', color = cmap(norm(pressure)), s=40, label=f'{pressure} GPa, {run}')
+                        marker='o', color = cmap(norm(pressure)), 
+                        s=40, label=f'{pressure} GPa {run}' if len(df['RunLabel'].unique()) > 2 else f'{pressure} GPa')
 
-        # if more than one run per pressure: label=run 
-        # if one run per pressure: label = f"{run} {subset['Pressure'].iloc[0]} GPa"
-
-    plt.xlim(6.5,14.5)
-    plt.ylim(2.5e-10, 1.5e-8)
+    plt.text(0.05, 0.8, r"Fermi-Liquid fit: $\rho \sim \rho_0 + A \cdot T^2$", transform=plt.gca().transAxes)
+    # plt.xlim(6.8,14.2)
+    # plt.ylim(1e-10, 5e-8)
     plt.xlabel("Pressure (GPa)")
-    plt.ylabel(r"A from Fermi-Liquid fit ($\rho \sim \rho_0 + A \dot T^2$)")
+    plt.ylabel("A coefficient")
+    plt.yscale('log')
     plt.title(title)
-    plt.legend()
+    plt.legend(fontsize=12)
     plt.grid(True, linestyle=':', linewidth=0.5)
     plt.tight_layout()
 
@@ -301,8 +304,10 @@ def plot_FermiLiquid_stack(original_data, fit_results,
         
         # Scatter: original data
         ax.scatter(subset[x]**2, subset[y],
-                   label=f"{pressure} GPa, {run_label}", #, A = {best_params[1]:.2e} ± {np.sqrt(best_covariance[1, 1]):.1e}",
+                   # label=f"{pressure} GPa, {run_label}", 
                    s=1.5, alpha=0.8, color=color)
+        ax.text(0.05, 0.75, f"{pressure} GPa", color=color,
+                transform=ax.transAxes)
 
         # Line: fitted curve
         T_fit = np.linspace(0, 45, 1000)
@@ -324,7 +329,7 @@ def plot_FermiLiquid_stack(original_data, fit_results,
         else:
             ax.set_xlabel(r"$T^2$ (K$^2$)")
 
-        ax.legend(fontsize=11, loc='lower right')
+        ax.legend(loc='lower right')
         ax.grid(True, linestyle=':', linewidth=0.5)
         ax.set_yticks([])
 
@@ -336,5 +341,5 @@ def plot_FermiLiquid_stack(original_data, fit_results,
 
     # Save and show
     plt.tight_layout()
-    plt.savefig(savepath, dpi=900, transparent=True)
+    plt.savefig(savepath, dpi=600, transparent=True)
     plt.show()

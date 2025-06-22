@@ -120,7 +120,7 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
 
             plot_coefficient_A(
                 fit_results, 
-                figwidth=5.5, figheight=4.5,
+                figwidth=6, figheight=3,
                 savefile=savefile,
                 saveformat=saveformat,
                 title=f"{Project}_fitted_coeff"
@@ -130,7 +130,7 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
             plot_FermiLiquid_stack(all_data, fit_results,
                             target_pressures=metal_pressures,
                             x='Temp1 (K)', y='resistivity',
-                            figwidth=5, figheight_per_plot=1.25,
+                            figwidth=6, figheight_per_plot=1.25,
                             savepath=f'{Project}_FermiLiquid_T2_stack.{saveformat}')
                        
         if 'plot_offset' in FermiLiquid:
