@@ -6,7 +6,7 @@ Email:[dengs@ill.fr] or [sd864@cantab.ac.uk]
 """
 
 import matplotlib
-matplotlib.use('TkAgg') 
+# matplotlib.use('TkAgg') 
 import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
@@ -21,15 +21,23 @@ def Landau_resistivity(T, rho0, A):
 
 ########
 def FermiLiquid_T2_fit(data, x='Temp1 (K)', y='resistivity',
-                       Tmin_range=(5, 30), Tmax_span=(10, 15), debug=False):
+                       Tmin_range=(5, 30), Tmax_span=(10, 15), 
+                       min_range_width=6,
+                       min_norm_error=1e-3,
+                       use_normalized_error=True, 
+                       debug=False):
     
     rho0_estimate =data[y].min()
     best_params, best_covariance = None, None
     best_error = float('inf')
     best_T_range = None
+    passed_threshold = False
 
     for Tmin in range(*Tmin_range):
         for Tmax in range(Tmin+Tmax_span[0], Tmin+Tmax_span[1]+1):
+            if (Tmax - Tmin) < min_range_width:
+                continue
+
             mask = (data[x] > Tmin) & (data[x] < Tmax)
             filtered_data=data[mask]
 
@@ -45,25 +53,43 @@ def FermiLiquid_T2_fit(data, x='Temp1 (K)', y='resistivity',
 
             # Calculate the error of the fit
             residuals = filtered_data[y] - Landau_resistivity(filtered_data[x], *params)
-            error = np.mean(residuals**2)
+            mse = np.mean(residuals ** 2)
+
+            if use_normalized_error:
+                norm = np.mean(filtered_data[y]) ** 2
+                error = mse / norm if norm != 0 else mse
+            else:
+                error = mse
+
             if debug:
                 print(f"  Temp Range: {Tmin}-{Tmax} K")
-                print(f"  Err: {error}")
+                print(f"  MSE = {mse:.3e}, NormError = {error:.3e}")
                 print("***********************")
 
-            # Update best fit parameters if the error is lower
-            if error < best_error:
-                best_error = error
+            if error < min_norm_error:
+                if not passed_threshold or error < best_error:
+                    best_error = error
+                    best_params = params
+                    best_covariance = covariance
+                    best_T_range = (Tmin, Tmax)
+                    passed_threshold = True
+
+            elif not passed_threshold and mse < best_error:
+                # fallback: keep track of best even if above threshold
+                best_error = mse
                 best_params = params
                 best_covariance = covariance
                 best_T_range = (Tmin, Tmax)
 
     #### print out the final fiting results
-    print(f"  rho0 = {best_params[0]:.4e} ± {np.sqrt(best_covariance[0, 0]):.2e}")
-    print(f"  A    = {best_params[1]:.4e} ± {np.sqrt(best_covariance[1, 1]):.2e}")
-    print(f"  Temp Range: {best_T_range[0]}–{best_T_range[1]} K")
-    print(f"  Error: {best_error}")
-                
+    if best_params is not None:
+        print(f"  rho0 = {best_params[0]:.4e} ± {np.sqrt(best_covariance[0, 0]):.2e}")
+        print(f"  A    = {best_params[1]:.4e} ± {np.sqrt(best_covariance[1, 1]):.2e}")
+        print(f"  Temp Range: {best_T_range[0]}–{best_T_range[1]} K")
+        print(f"  {'Normalized ' if use_normalized_error else ''}Error: {best_error:.3e}")
+    else:
+        print("  No valid fit found.")
+
     return best_params, best_covariance, best_T_range, best_error
 
 
@@ -100,10 +126,26 @@ def plot_fermi_liquid_fit(data, params, Trange, filetitle, x='Temp1 (K)', y='res
 
 
 ###################
-def plot_coefficient_A(fit_results, figwidth=5.5, figheight=4.5, 
+def plot_y_pressure(fit_results, y_parameter="A_coeff",
+                       figwidth=5.5, figheight=4.5, 
                        savefile=None, saveformat='png', 
-                       title="Fermi-liquid A coefficient"):
+                       title="Fermi-liquid fit results",
+                       log_scale=False):
+    """
+    Plot any parameter from fit_results vs pressure.
+    
+    Parameters:
+    -----------
+    y_parameter : str or list
+        Single parameter: 'A_coeff', 'rho0', 'Tmin', 'Tmax', 'Error'
+        Multiple parameters: ['A_coeff', 'Tmin', 'Tmax'] for subplots
+    log_scale : bool
+        Whether to use log scale for y-axis
+    """
+
     import pandas as pd
+    import numpy as np
+    from scipy.interpolate import make_interp_spline
 
     # Collect all coefficients from fit_results
     records = []
@@ -117,6 +159,7 @@ def plot_coefficient_A(fit_results, figwidth=5.5, figheight=4.5,
             "RunLabel": run,
             "A_coeff": params[1],   # A
             "rho0": params[0],      # rho₀
+            "1/rho0": 1/params[0],   # 1/rho₀
             "Tmin": Trange[0],
             "Tmax": Trange[1],
             "Error": error
@@ -124,31 +167,50 @@ def plot_coefficient_A(fit_results, figwidth=5.5, figheight=4.5,
 
     df = pd.DataFrame(records)
 
-    # Print coefficients line by line
-    print(f"\nFermi-liquid A coefficients for {title}:")
-    print(f"{'Pressure(GPa)':>14}  {'RunLabel':>10}  {'A_coeff':>12}")
-    for _, row in df.iterrows():
-        print(f"{row['Pressure']:>14}  {row['RunLabel']:>10}  {row['A_coeff']:>12.4e}")
+    # Set up plot labels and title
+    y_labels = {
+        'A_coeff': 'A coefficient',
+        'rho0': r'$\rho_0$ ($\Omega \cdot$m)',
+        '1/rho0': r'$1/\rho_0$ ($\Omega^{-1} $m$^{-1}$)',
+        'Tmin': r'$T_{min}$ (K)',
+        'Tmax': r'$T_{max}$ (K)',
+        'Error': 'Fitting Error'
+    }
 
-    # Plot A vs Pressure, grouped by run label
-    print("start plotting coeff_A vs Pressure")
+    if title is None:
+        title = f"Fermi-liquid {y_labels.get(y_parameter, y_parameter)} vs Pressure"
+
+    # Print line by line
+    print(f"\nFermi-liquid {y_parameter} for {title}:")
+    print(f"{'Pressure(GPa)':>14}  {'RunLabel':>10}  {y_parameter:>12}")
+    for _, row in df.iterrows():
+        print(f"{row['Pressure']:>14}  {row['RunLabel']:>10}  {row[y_parameter]:>12.4e}")
+
+    # Plot y vs Pressure, grouped by run label
     plt.figure(figsize=(figwidth, figheight))
     for pressure in df['Pressure'].unique():
         for run in df[df['Pressure'] == pressure]['RunLabel'].unique():
             print(f"  Pressure: {pressure} GPa, Run: {run}")
             subset = df[(df['Pressure'] == pressure) & (df['RunLabel'] == run)]
-            plt.scatter(subset['Pressure'], subset['A_coeff'], 
+            plt.scatter(subset['Pressure'], subset[y_parameter], 
                         marker='o', color = cmap(norm(pressure)), 
                         s=40, label=f'{pressure} GPa {run}' if len(df['RunLabel'].unique()) > 2 else f'{pressure} GPa')
 
-    plt.text(0.05, 0.8, r"Fermi-Liquid fit: $\rho \sim \rho_0 + A \cdot T^2$", transform=plt.gca().transAxes)
-    # plt.xlim(6.8,14.2)
-    # plt.ylim(1e-10, 5e-8)
     plt.xlabel("Pressure (GPa)")
-    plt.ylabel("A coefficient")
-    plt.yscale('log')
+    plt.ylabel(y_labels.get(y_parameter, y_parameter))
+
+    # Connect all scatter points with a straight line (no fitting)
+    df_sorted = df.sort_values('Pressure')
+    x_all = df_sorted['Pressure'].values
+    y_all = df_sorted[y_parameter].values
+
+    plt.plot(x_all, y_all, linestyle=':', color='royalblue', linewidth=1.0, zorder=-1)
+
+    if log_scale:
+        plt.yscale('log')
     plt.title(title)
-    plt.legend(fontsize=12)
+    # plt.subtitle(0.5, 0.7, r"Fermi-Liquid fit: $\rho \sim \rho_0 + A \cdot T^2$", 
+    #             ha='center', fontsize=14) 
     plt.grid(True, linestyle=':', linewidth=0.5)
     plt.tight_layout()
 
@@ -221,7 +283,8 @@ def plot_FermiLiquid_offset(fit_results, target_pressures,
         )
 
         # Annotate Tmin and Tmax on the fit with arrows
-        arrow_length = 500
+        arrow_length = 0.000002
+
         for T, color in zip(Trange, ['cyan', 'red']):
             x_arrow = T**2
             y_arrow = Landau_resistivity(T, *params)/slope + offset
@@ -238,11 +301,11 @@ def plot_FermiLiquid_offset(fit_results, target_pressures,
         ylim_max = max(ylim_max, np.max(yvals))
 
     # Axis labels and limits
-    ax.set_xlabel(r"$T^2$ (K$^2$)")
-    ax.set_ylabel(r"Normalized, offset resistivity $\rho$ ($\Omega \cdot$m)")
+    ax.set_xlabel(r"$T^2$ (K$^2$)") 
+    #ax.set_ylabel(r"Normalized, offset resistivity $\rho$ ($\Omega \cdot$m)")
     ax.text(0.05, 0.85, r"$\rho \sim \rho_0 + A \cdot T^2$",
             transform=ax.transAxes, ha='left', fontsize=15)
-    ax.set_yticks([])
+    # ax.set_yticks([])
     ax.set_xlim(0, Temp_mask**2)
     ax.set_ylim(ylim_min*0.85, ylim_max)  # Adjusted y-limits for better visibility
 

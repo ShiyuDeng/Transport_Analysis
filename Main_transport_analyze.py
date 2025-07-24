@@ -15,15 +15,16 @@ import matplotlib.pyplot as plt
 import os
 import sys
 
-from transport_processing import load_data, plot_current, plot_cooling_rate, plot_transport_data, plot_Arrhenius, NeelTran, compute_RRR
-from FermiLiquid_Fit import FermiLiquid_T2_fit, plot_fermi_liquid_fit, plot_FermiLiquid_stack, plot_FermiLiquid_offset, plot_coefficient_A
+from transport_processing import *
+from FermiLiquid_Fit import * 
+from Mobility import mobility_analysis
 
 #### Main Code ######
 def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, Tmax_fit, Pressures_RRR,
-         Project, fit_slope, metal_pressures, slope_values, offset_values, ytrans, saveformat,
+         Project, fit_slope, metal_pressures, slope_values, offset_values, y_parameter, ytrans, saveformat,
          current=False, cooling=False, analysis_RRR=False, 
          transport=False, transport_norm=False,
-         FermiLiquid=None, inset_coeff=False, Arrhenius=False, MagTran=False,
+         FermiLiquid=None, inset_coeff=False, Arrhenius=False, MagTran=False, mobility=False,
          savefile=False, printplot=False):
 
     ###### general style #######
@@ -115,15 +116,15 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                      print(f"No suitable temperature range found for Pressure {pressure} GPa, run label: {run}.")
         print("Finished analyzing for pressures for metallic phase.")
         
-        if 'plot_coefficient' in FermiLiquid:
-            print("Plotting Fermi-liquid coefficient A as a function of pressure:")
-
-            plot_coefficient_A(
+        if 'plot_param_in_pressure' in FermiLiquid:
+            plot_y_pressure(
                 fit_results, 
+                y_parameter=y_parameter ,
                 figwidth=6, figheight=3,
                 savefile=savefile,
                 saveformat=saveformat,
-                title=f"{Project}_fitted_coeff"
+                title=f"{Project}_{y_parameter}",
+                log_scale=True
             )
 
         if 'plot_stacked' in FermiLiquid:
@@ -179,9 +180,15 @@ def main(data_path, file_labels, h, w, l, Pressure_check, Tmin, Tmax, Tmin_fit, 
                 x_col='Temp1 (K)', y_col=ytrans,
                 window_size=window_size, subsample_factor=subsample_factor,
                 figwidth=6, figheight=4.5, color='orange',
-                savepath=f'{Project}_{target_pressure}GPa_{Tm1}_{Tm2}K_NeelTran.{saveformat}', 
+                savepath=f'{Project}_{target_pressure}GPa_{Tm1}_{Tm2}K.{saveformat}', 
                 savefile=savefile
                 )
+        
+    if mobility:
+        df_mu = mobility_analysis(Hall_eff_data='Hall_effect_data',
+                                  resistivity_data='sample1_rho0',
+                                  figwidth=6.0, figheight=4.5,
+                                  saveplot=None, saveformat='png')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Transport Data Analysis")
@@ -193,10 +200,13 @@ if __name__ == "__main__":
     parser.add_argument("-transport_norm", action="store_true", help="Plot normalized resistance")
     parser.add_argument("--FermiLiquid",
                         nargs='+',
-                        choices=['plot_coefficient','plot_individual', 'plot_stacked', 'plot_offset'],
-                        help="Run Fermi-liquid analysis for low Temp metallic phase. Choose from: plot_coefficient, plot_individual, plot_stacked, plot_offset")
+                        choices=['plot_param_in_pressure','plot_individual', 'plot_stacked', 'plot_offset'],
+                        help="Run Fermi-liquid analysis for low Temp metallic phase.\n " \
+                        "Fitting parameters analysis in pressure: plot_param_in_pressure; \n" \
+                        "Fitted resistivity: plot_individual, plot_stacked, plot_offset")
     parser.add_argument("-Arrhenius", action="store_true", help="Arrhenius fitting for insulator")
     parser.add_argument("-MagTran", action="store_true", help="Analyze Neel transition")
+    parser.add_argument("-mobility", action="store_true", help="Calculate mobility from Hall effect and resistivity data")
     parser.add_argument("-saveplot",  action="store_true", help="save the plot")
     parser.add_argument("-printplot", action="store_true", help="Enable publication plot")
 
@@ -230,6 +240,7 @@ if __name__ == "__main__":
         metal_pressures=config.metal_pressures,
         slope_values = getattr(config, "slope_values", None),
         offset_values=config.offset_values,
+        y_parameter=getattr(config, "y_parameter", 'A_coeff'),
         inset_coeff=getattr(config, "inset_coeff", False),
         current=args.current,
         cooling=args.cooling,
@@ -241,6 +252,7 @@ if __name__ == "__main__":
         FermiLiquid=args.FermiLiquid,
         Arrhenius=args.Arrhenius,
         MagTran=args.MagTran,
+        mobility=args.mobility,
         printplot=args.printplot,
         savefile=args.saveplot
     )

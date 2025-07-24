@@ -12,7 +12,7 @@ from pandas import DataFrame as df
 
 import numpy as np
 import matplotlib
-matplotlib.use('TkAgg') 
+# matplotlib.use('TkAgg') 
 import matplotlib.pyplot as plt
 import itertools
 from matplotlib import ticker
@@ -284,13 +284,13 @@ def plot_transport_data(all_data, x, y, fwidth=6, fheight=5, saveformat='png',
         ax.set_ylabel(r'Resistivity $\rho$ ($\Omega\,\cdot \mathrm{m}$)')
     elif y == 'Resistance1 (Ohm)':
         ax.set_ylabel(r'Resistance $R$ ($\Omega$)')
-
-    ax.set_yscale('log')
+    
     ax.set_xlim(0, 300)
-    if y == 'resistivity':
-        ax.set_ylim(4e-7, 2e3)
-    elif y == 'Resistance1 (Ohm)':
-        ax.set_ylim(5e-2, 1e8) 
+    ax.set_yscale('log')
+    # if y == 'resistivity':
+    #     ax.set_ylim(4e-7, 2e3)
+    # elif y == 'Resistance1 (Ohm)':
+    #     ax.set_ylim(5e-2, 1e8) 
         
     # Increase marker size in legend only
     legend = ax.legend(loc='best',
@@ -450,7 +450,7 @@ def NeelTran(
         ax2.annotate(
             r'$T_N = {0:.1f} \pm {1:.1f}$ K'.format(Tmean, T_err),
             xy=(Tmean, 0), xycoords=('data', 'data'),
-            xytext=(-120, 30), textcoords='offset points',
+            xytext=(-60, 30), textcoords='offset points',
             arrowprops=dict(arrowstyle='->', color='#1f77b4'),
             color='#1f77b4', ha='left'
         )
@@ -464,11 +464,10 @@ def NeelTran(
     ax1.grid(True)
     plot_title = os.path.splitext(os.path.basename(savepath))[0]  # Extract title without extension
     ax1.set_title(plot_title)
-    #ax2.set_ylim(-derivative.max()*1.02, derivative.max()*1.02)
-    ax2.set_ylabel(r'$d\rho/d\rmT$')
-    ax2.set_xlabel('T (K)')
+    ax2.set_ylim(-0.002,0.002)
+    ax2.set_ylabel(r'd$\rho$/d$T$') 
     ax2.grid(True)
-    plt.xlim(10, 280)
+    plt.xlim(5,280)
 
     ax2.set_ylim(auto=True)
     plt.tight_layout()
